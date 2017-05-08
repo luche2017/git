@@ -1,0 +1,479 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "AWS CloudFormation Sample Template EC2InstanceSample: Create an Amazon EC2 instance running the Amazon Linux AMI. The AMI is chosen based on the region in which the stack is run. This example uses the default security group, so to SSH to the new instance using the KeyPair you enter, you will need to have port 22 open in your default security group. **WARNING** This template an Amazon EC2 instances. You will be billed for the AWS resources used if you create a stack from this template.",
+	"Parameters": {
+		"KeyName": {
+			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instance",
+			"Type": "String",
+			"MinLength": "1",
+			"MaxLength": "255",
+			"AllowedPattern": "[\\x20-\\x7E]*",
+			"ConstraintDescription": "can contain only ASCII characters."
+		},
+		"InstanceType": {
+			"Description": "Web Server EC2 instance type",
+			"Type": "String",
+			"Default": "t2.micro",
+			"AllowedValues": ["t1.micro",
+			"t2.nano",
+			"t2.micro",
+			"t2.small",
+			"t2.medium",
+			"t2.large",
+			"m1.small",
+			"m1.medium",
+			"m1.large",
+			"m1.xlarge",
+			"m2.xlarge",
+			"m2.2xlarge",
+			"m2.4xlarge",
+			"m3.medium",
+			"m3.large",
+			"m3.xlarge",
+			"m3.2xlarge",
+			"m4.large",
+			"m4.xlarge",
+			"m4.2xlarge",
+			"m4.4xlarge",
+			"m4.10xlarge",
+			"c1.medium",
+			"c1.xlarge",
+			"c3.large",
+			"c3.xlarge",
+			"c3.2xlarge",
+			"c3.4xlarge",
+			"c3.8xlarge",
+			"c4.large",
+			"c4.xlarge",
+			"c4.2xlarge",
+			"c4.4xlarge",
+			"c4.8xlarge",
+			"g2.2xlarge",
+			"g2.8xlarge",
+			"r3.large",
+			"r3.xlarge",
+			"r3.2xlarge",
+			"r3.4xlarge",
+			"r3.8xlarge",
+			"i2.xlarge",
+			"i2.2xlarge",
+			"i2.4xlarge",
+			"i2.8xlarge",
+			"d2.xlarge",
+			"d2.2xlarge",
+			"d2.4xlarge",
+			"d2.8xlarge",
+			"hi1.4xlarge",
+			"hs1.8xlarge",
+			"cr1.8xlarge",
+			"cc2.8xlarge",
+			"cg1.4xlarge"],
+			"ConstraintDescription": "must be a valid EC2 instance type."
+		},
+		"SSHLocation": {
+			"Description": "The IP address range that can be used to SSH to the EC2 instances",
+			"Type": "String",
+			"MinLength": "9",
+			"MaxLength": "18",
+			"Default": "0.0.0.0/0",
+			"AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+			"ConstraintDescription": "must be a valid IP CIDR range of the for x.x.x.x/x."
+		},
+		"OperatorEmail": {
+			"Description": "Email address to notify if there are any scaling operations",
+			"Type": "String"
+		}
+	},
+	"Mappings": {
+		"RegionMap": {
+			"ap-south-1": {
+				"AMI": "ami-52c7b43d"
+			},
+			"eu-west-2": {
+				"AMI": "ami-b6daced2"
+			},
+			"eu-west-1": {
+				"AMI": "ami-01ccc867"
+			},
+			"ap-northeast-2": {
+				"AMI": "ami-9d15c7f3"
+			},
+			"ap-northeast-1": {
+				"AMI": "ami-923d12f5"
+			},
+			"sa-east-1": {
+				"AMI": "ami-37cfad5b"
+			},
+			"ca-central-1": {
+				"AMI": "ami-0bd66a6f"
+			},
+			"ap-southeast-1": {
+				"AMI": "ami-fc5ae39f"
+			},
+			"ap-southeast-2": {
+				"AMI": "ami-162c2575"
+			},
+			"eu-central-1": {
+				"AMI": "ami-b968bad6"
+			},
+			"us-east-1": {
+				"AMI": "ami-c58c1dd3"
+			},
+			"us-east-2": {
+				"AMI": "ami-4191b524"
+			},
+			"us-west-1": {
+				"AMI": "ami-7a85a01a"
+			},
+			"us-west-2": {
+				"AMI": "ami-4836a428"
+			}
+		}
+	},
+	"Resources": {
+		"RootRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Statement": [{
+						"Effect": "Allow",
+						"Principal": {
+							"Service": ["ec2.amazonaws.com"]
+						},
+						"Action": ["sts:AssumeRole"]
+					}]
+				},
+				"Path": "/",
+				"Policies": [{
+					"PolicyName": "root",
+					"PolicyDocument": {
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": "*",
+							"Resource": "*"
+						}]
+					}
+				}]
+			}
+		},
+		"RootInstanceProfile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/",
+				"Roles": [{
+					"Ref": "RootRole"
+				}]
+			}
+		},
+		"User": {
+			"Type": "AWS::IAM::User",
+			"Properties": {
+				"Path": "/",
+				"Policies": [{
+					"PolicyName": "root",
+					"PolicyDocument": {
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": "*",
+							"Resource": "*"
+						}]
+					}
+				}]
+			}
+		},
+		"ElasticLoadBalancer": {
+			"Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+			"Properties": {
+				"AvailabilityZones": {
+					"Fn::GetAZs": ""
+				},
+				"Listeners": [{
+					"LoadBalancerPort": "80",
+					"InstancePort": "8080",
+					"Protocol": "HTTP"
+				}],
+				"HealthCheck": {
+					"Target": "HTTP:8080/jenkins/",
+					"HealthyThreshold": "3",
+					"UnhealthyThreshold": "5",
+					"Interval": "30",
+					"Timeout": "5"
+				}
+			}
+		},
+		"WebServerGroup": {
+			"Type": "AWS::AutoScaling::AutoScalingGroup",
+			"Properties": {
+				"AvailabilityZones": {
+					"Fn::GetAZs": ""
+				},
+				"LoadBalancerNames": [{
+					"Ref": "ElasticLoadBalancer"
+				}],
+				"LaunchConfigurationName": {
+					"Ref": "LaunchConfig"
+				},
+				"MinSize": "1",
+				"MaxSize": "10",
+				"DesiredCapacity": "1"
+			}
+		},
+		"LaunchConfig": {
+			"Type": "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata": {
+				"AWS::CloudFormation::Init": {
+					"config": {
+						"packages": {
+							"yum": {
+								"gcc-c++": [],
+								"autoconf": [],
+								"automake": [],
+								"libxml2-devel": [],
+								"libxslt-devel": [],
+								"httpd": []
+							}
+						},
+						"sources": {
+							"/etc/chef/": "https://s3-us-west-1.amazonaws.com/lus3bucket/chef-jenkins/cookbooks.zip"
+						},
+						"files": {
+							"/tmp/cwlogs/apacheaccess.conf": {
+								"content": {
+									"Fn::Join": ["",
+									["[general]\n",
+									"state_file= /var/awslogs/agent-state\n",
+									"[/var/log/httpd/access_log]\n",
+									"file = /var/log/httpd/access_log\n",
+									"log_group_name = ",
+									{
+										"Ref": "WebServerLogGroup"
+									},
+									"\n",
+									"log_stream_name = {instance_id}/apache.log\n",
+									"datetime_format = %d/%b/%Y:%H:%M:%S"]]
+								},
+								"mode": "000400",
+								"owner": "apache",
+								"group": "apache"
+							},
+							"/etc/chef/solo.rb": {
+								"content": {
+									"Fn::Join": ["",
+									["file_cache_path File.join(Dir.pwd, 'cache')\n",
+									"cookbook_path File.join(Dir.pwd, 'cookbooks')\n"]]
+								},
+								"mode": "000555",
+								"owner": "ec2-user",
+								"group": "ec2-user"
+							},
+							"/etc/chef/solo.js": {
+								"source": "https://s3-us-west-1.amazonaws.com/lus3bucket/chef-jenkins/solo.js",
+								"mode": "000555",
+								"owner": "ec2-user",
+								"group": "ec2-user"
+							}
+						},
+						"groups": {
+							"groupOne": {
+								
+							},
+							"groupTwo": {
+								"gid": "45"
+							}
+						},
+						"users": {
+							"myUser": {
+								"groups": ["groupOne",
+								"groupTwo"],
+								"uid": "50",
+								"homeDir": "/tmp"
+							}
+						},
+						"commands": {
+							"1-chef": {
+								"command": "chown -R ec2-user:ec2-user chef",
+								"cwd": "/etc/"
+							},
+							"2-chef": {
+								"command": "chef-solo -j ./solo.js -c ./solo.rb",
+								"cwd": "/etc/chef"
+							}
+						},
+						"services": {
+							"sysvinit": {
+								"httpd": {
+									"enabled": "true",
+									"ensureRunning": "true"
+								}
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"KeyName": {
+					"Ref": "KeyName"
+				},
+				"InstanceType": "t2.micro",
+				"IamInstanceProfile": {
+					"Ref": "RootInstanceProfile"
+				},
+				"ImageId": {
+					"Fn::FindInMap": ["RegionMap",
+					{
+						"Ref": "AWS::Region"
+					},
+					"AMI"]
+				},
+				"SecurityGroups": [{
+					"Ref": "WebServerSecurityGroup"
+				}],
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": ["",
+						["#!/bin/bash\n",
+						"yum update -y aws-cfn-bootstrap\n",
+						"# Remove Ruby 1.8.7\n",
+						"yum erase -y ruby rubygems\n",
+						"# Install Ruby 1.9.3\n",
+						"yum -y install ruby19-devel\n",
+						"# Move Ruby 1.9.3 to Default Ruby\n",
+						"ln -s /usr/bin/ruby1.9 /usr/bin/ruby\n",
+						"ln -s /usr/bin/gem1.9 /usr/bin/gem\n",
+						"# Install Chef\n",
+						"wget https://packages.chef.io/files/stable/chef/11.4.4/el/6/chef-11.4.4-2.el6.x86_64.rpm\n",
+						"rpm -Uvh chef-11.4.4-2.el6.x86_64.rpm\n",
+						"/opt/aws/bin/cfn-init -s ",
+						{
+							"Ref": "AWS::StackId"
+						},
+						" -r LaunchConfig ",
+						"         --region ",
+						{
+							"Ref": "AWS::Region"
+						},
+						"\n",
+						"/opt/aws/bin/cfn-signal",
+						" -e 0",
+						" '",
+						{
+							"Ref": "WaitHandle"
+						},
+						"'\n"]]
+					}
+				}
+			}
+		},
+		"WebServerSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Enable SSH",
+				"SecurityGroupIngress": [{
+					"IpProtocol": "tcp",
+					"FromPort": "22",
+					"ToPort": "22",
+					"CidrIp": "0.0.0.0/0"
+				},
+				{
+					"IpProtocol": "tcp",
+					"FromPort": "8080",
+					"ToPort": "8080",
+					"CidrIp": "0.0.0.0/0"
+				}]
+			}
+		},
+		"WaitHandle": {
+			"Type": "AWS::CloudFormation::WaitConditionHandle"
+		},
+		"WaitCondition": {
+			"Type": "AWS::CloudFormation::WaitCondition",
+			"DependsOn": "LaunchConfig",
+			"Properties": {
+				"Handle": {
+					"Ref": "WaitHandle"
+				},
+				"Timeout": "990"
+			}
+		},
+		"WebServerLogGroup": {
+			"Type": "AWS::Logs::LogGroup",
+			"Properties": {
+				"RetentionInDays": 7
+			}
+		},
+		"404MetricFilter": {
+			"Type": "AWS::Logs::MetricFilter",
+			"Properties": {
+				"LogGroupName": {
+					"Ref": "WebServerLogGroup"
+				},
+				"FilterPattern": "[ip, identity, user_id, timestamp, request, status_code = 404, size, ...]",
+				"MetricTransformations": [{
+					"MetricValue": "1",
+					"MetricNamespace": "test/404s",
+					"MetricName": "test404Count"
+				}]
+			}
+		},
+		"BytesTransferredMetricFilter": {
+			"Type": "AWS::Logs::MetricFilter",
+			"Properties": {
+				"LogGroupName": {
+					"Ref": "WebServerLogGroup"
+				},
+				"FilterPattern": "[ip, identity, user_id, timestamp, request, status_code, size, ...]",
+				"MetricTransformations": [{
+					"MetricValue": "$size",
+					"MetricNamespace": "test/BytesTransferred",
+					"MetricName": "testBytesTransferred"
+				}]
+			}
+		},
+		"404Alarm": {
+			"Type": "AWS::CloudWatch::Alarm",
+			"Properties": {
+				"AlarmDescription": "The number of 404s is greater than 2 over 2 minutes",
+				"MetricName": "test404Count",
+				"Namespace": "test/404s",
+				"Statistic": "Sum",
+				"Period": "60",
+				"EvaluationPeriods": "2",
+				"Threshold": "2",
+				"AlarmActions": [{
+					"Ref": "AlarmNotificationTopic"
+				}],
+				"ComparisonOperator": "GreaterThanThreshold"
+			}
+		},
+		"BandwidthAlarm": {
+			"Type": "AWS::CloudWatch::Alarm",
+			"Properties": {
+				"AlarmDescription": "The average volume of traffic is greater 3500 KB over 10 minutes",
+				"MetricName": "testBytesTransferred",
+				"Namespace": "test/BytesTransferred",
+				"Statistic": "Average",
+				"Period": "300",
+				"EvaluationPeriods": "2",
+				"Threshold": "3500",
+				"AlarmActions": [{
+					"Ref": "AlarmNotificationTopic"
+				}],
+				"ComparisonOperator": "GreaterThanThreshold"
+			}
+		},
+		"AlarmNotificationTopic": {
+			"Type": "AWS::SNS::Topic",
+			"Properties": {
+				"Subscription": [{
+					"Endpoint": {
+						"Ref": "OperatorEmail"
+					},
+					"Protocol": "email"
+				}]
+			}
+		}
+	},
+	"Outputs": {
+		
+	}
+}
