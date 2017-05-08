@@ -1,7 +1,7 @@
 How to use the cloudformation template to create CloudFormation Stack:
 
 1. Download the CF template from the following URL:
-https://s3-us-west-1.amazonaws.com/lus3bucket/CreateJenkinsServerUsingAWSAndChef.json
+https://github.com/luche2017/git/blob/master/createJenkinsServerUsingAWSAndChef.json
 
 2. Create CF stack using AWS console:
   - On the "Specify Details" page, enter the following information:
